@@ -1,0 +1,9 @@
+# from in seconds.miliseconds format (ss.ms)
+from = "1.1"
+# number of seconds from the "from" time. (ss.ms) (ss)
+duration = "15"
+video_file_path = "/home/pushrbx/videos/sample.mp4"
+# this sets if the app transcodes or just copies the stream
+use_copy = true
+output_file_path = ""
+ffmpeg_path = ""
