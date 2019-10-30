@@ -5,6 +5,13 @@ cutting videos (mp4) with ffmpeg. It takes a toml configuration file in which yo
 the encoding duration, the source file, the target file, the path to ffmpeg,
 and whether you want it to re-encode the video or just copy it.
 
+## Requirements
+
+- Python 3.7+
+- pyee
+- toml
+- python-ffmpeg
+
 ## Usage
 
 Clone the repo, create and activate a virtual env in your favourite terminal/console, then install dependencies:
