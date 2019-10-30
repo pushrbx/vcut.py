@@ -1,0 +1,3 @@
+pyee==6.0.0
+python-ffmpeg==1.0.8
+toml==0.10.0
