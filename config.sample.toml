@@ -7,3 +7,6 @@ video_file_path = "/home/pushrbx/videos/sample.mp4"
 use_copy = true
 output_file_path = ""
 ffmpeg_path = ""
+ffprobe_path = ""
+# this will result in ${duration} long chunks
+chunk_it = false

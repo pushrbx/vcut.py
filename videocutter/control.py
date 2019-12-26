@@ -1,5 +1,12 @@
 from ffmpeg import FFmpeg
 import os
+import subprocess
+import json
+import math
+
+
+def ceildiv(a, b):
+    return int(math.ceil(a / float(b)))
 
 
 class Controller(object):
@@ -31,11 +38,22 @@ class Controller(object):
         if 'ffmpeg_path' not in config:
             return False
 
+        if 'ffprobe_path' not in config:
+            return False
+
+        if 'chunk_it' not in config:
+            return False
+
         if type(config['from']) is not str\
                 or type(config['duration']) is not str\
                 or type(config['video_file_path']) is not str\
                 or type(config['output_file_path']) is not str\
-                or type(config['ffmpeg_path']) is not str:
+                or type(config['ffmpeg_path']) is not str\
+                or type(config['ffprobe_path']) is not str\
+                or type(config['chunk_it']) is not bool:
+            return False
+
+        if config['chunk_it'] and not config['ffprobe_path']:
             return False
 
         if not os.path.exists(config['video_file_path']):
@@ -44,23 +62,24 @@ class Controller(object):
         if type(config['use_copy']) is not bool:
             return False
 
+        if config['chunk_it'] and not os.path.exists(config['ffprobe_path']):
+            raise IOError(f"File not found: {config['ffprobe_path']}")
+
         return True
 
-    async def do_the_thing(self) -> None:
+    async def cut_video(self, cut_from, duration, video_file_path, output_path, use_copy):
         if self.config['ffmpeg_path'] is not None and self.config['ffmpeg_path'] != '':
             ffmpeg = FFmpeg(self.config['ffmpeg_path'])
         else:
             ffmpeg = FFmpeg()
 
-        ffmpeg = ffmpeg.option('ss', self.config['from']).input(
-            os.path.abspath(self.config['video_file_path']))
+        ffmpeg = ffmpeg.option('ss', cut_from).input(
+            os.path.abspath(video_file_path))
 
-        output_file = self.config['output_file_path']
-        duration = self.config['duration']
-        if self.config['use_copy']:
-            ffmpeg = ffmpeg.output(output_file, c='copy', t=duration)
+        if use_copy:
+            ffmpeg = ffmpeg.output(output_path, c='copy', t=duration)
         else:
-            ffmpeg = ffmpeg.output(output_file, t=duration)
+            ffmpeg = ffmpeg.output(output_path, t=duration)
 
         @ffmpeg.on('start')
         def on_start(arguments):
@@ -83,3 +102,58 @@ class Controller(object):
             print('Error:', code)
 
         await ffmpeg.execute()
+
+    def get_video_info(self, video_file_path):
+        ffprobe_path = self.config['ffprobe_path']
+        result = subprocess.Popen([ffprobe_path,
+                                   '-print_format',
+                                   'json',
+                                   '-loglevel',
+                                   'quiet',
+                                   '-show_streams',
+                                   video_file_path], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        result = "".join([x.decode() for x in result.stdout.readlines()])
+        if result and result.startswith('{'):
+            video_info = json.loads(result)
+        else:
+            video_info = {}
+
+        return video_info
+
+    async def do_the_thing(self) -> None:
+        cut_from = self.config['from']
+        video_file_path = self.config['video_file_path']
+        output_file = self.config['output_file_path']
+        duration = self.config['duration']
+        use_copy = self.config['use_copy']
+        chunk_it = self.config['chunk_it']
+
+        if not chunk_it:
+            await self.cut_video(cut_from, duration, video_file_path, output_file, use_copy)
+        else:
+            video_info = self.get_video_info(video_file_path)
+            if len(video_info.keys()) == 0:
+                print('Could not read video info.')
+                return
+            video_stream_info = video_info['streams'][0]
+            video_duration = float(video_stream_info['duration'])
+            chunk_duration = float(duration)
+
+            chunk_count = ceildiv(video_duration, chunk_duration)
+            if chunk_count == 1:
+                print("Video length is less than thetarget split length.")
+                return
+
+            try:
+                filebase = ".".join(output_file.split(".")[:-1])
+                fileext = output_file.split(".")[-1]
+            except IndexError as e:
+                raise IndexError("No . in filename. Error: " + str(e))
+
+            for n in range(0, chunk_count):
+                if n == 0:
+                    cut_from = 0
+                else:
+                    cut_from = chunk_duration * n
+
+                await self.cut_video(f"{cut_from}", duration, video_file_path, f'{filebase}-{n+1}.{fileext}', use_copy)
