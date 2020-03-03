@@ -43,7 +43,7 @@ def get_args_parser():
     required_params.add_argument('-c, --config', help="the config file to use for the video cutting.",
                                  default=None,
                                  dest='config_file', required=True)
-    parser.add_argument('--version', action='version', version=f'HSS Bearing ANN {version}')
+    parser.add_argument('--version', action='version', version=f'vcut v{version}')
 
     return parser
 
